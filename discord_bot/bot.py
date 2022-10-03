@@ -11,6 +11,9 @@ from discord.ext import commands, tasks
 from discord.ext.commands import has_permissions
 from itertools import cycle
 
+#for linux
+#load_dotenv('../.env')
+#for windows
 load_dotenv('./.env')
 
 intents = discord.Intents.default()
