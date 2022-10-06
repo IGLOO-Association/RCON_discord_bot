@@ -1,3 +1,4 @@
+from multiprocessing.connection import wait
 import discord
 import os # default module
 import time
@@ -130,18 +131,49 @@ LONG_HUMAN_MAP_NAMES = {
 @bot.event
 async def on_ready():
     await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
-    rconApiCall.start()
     print('bot ready.')
-    
+
 @bot.command()
 async def start(ctx):
-    change_status.start()
-    autostatus.start(ctx)
+    await startBot(ctx)
+
+@bot.command()
+async def stop(ctx):
+    await stopBot(ctx)
+
+@bot.command()
+async def restart(ctx):
+    await stopBot(ctx)
+    time.sleep(10.0)
+    await startBot(ctx)
+    
+
+async def startBot(ctx):
+    if not rconApiCall.is_running():
+        rconApiCall.start()
+    if not change_status.is_running():
+        change_status.start()
+    if not autostatus.is_running():
+        autostatus.start(ctx)
+
+async def stopBot(ctx):
+    if rconApiCall.is_running():
+        rconApiCall.stop()
+    if change_status.is_running():
+        change_status.stop()
+    if autostatus.is_running(): 
+        autostatus.stop()
+    await deleteAll(ctx, False)
+    await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
 
 
 
 @bot.command()
 async def clean(ctx):
+    await deleteAll(ctx, True)
+    await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
+
+async def deleteAll(ctx, flag):
     guild = ctx.guild
     category = None
     for categoryChannel in guild.categories:
@@ -156,8 +188,8 @@ async def clean(ctx):
             await channel.delete() # Delete all channels
         except AttributeError: # If the category does not exist/channels are gone
             pass
-    
-    await category.delete()
+    if(flag):
+        await category.delete()
 
 
 @tasks.loop(seconds=5)
@@ -184,7 +216,7 @@ async def autostatus(ctx):
             break 
 
     if statusChannel == None:
-        statusChannel = await guild.create_text_channel("server-1",category = category)
+        statusChannel = await guild.create_text_channel("server-1  ",category = category)
     
     await statusChannel.purge(limit=100)
 
@@ -195,10 +227,11 @@ async def autostatus(ctx):
     )
     
     status.set_author(name=data['serverName'])
-    status.add_field(name='In Game', value=data['playerCount'] ,inline= False)
-    status.add_field(name='Game started', value=data['gameDuration'] ,inline= False)
-    status.add_field(name='Current Map', value=LONG_HUMAN_MAP_NAMES[data['currentMap']] ,inline= False)
-    status.add_field(name='Next Map', value=LONG_HUMAN_MAP_NAMES[data['nextMap']] ,inline= False)
+    status.add_field(name='En jeu', value=data['playerCount'] ,inline= False)
+    status.add_field(name='Carte commencée depuis', value=data['gameDuration'] ,inline= False)
+    status.add_field(name='Carte actuelle', value=LONG_HUMAN_MAP_NAMES[data['currentMap']] ,inline= False)
+    status.add_field(name='Prochaine carte', value=LONG_HUMAN_MAP_NAMES[data['nextMap']] ,inline= False)
+    status.set_footer(text='Map tactique')
     status.set_image(url=MAP_URL[MAP_NAME_TO_URL[data['currentMap']]])
     status.set_thumbnail(url='https://jungle-hll.fr/wp-content/uploads/2022/06/Logo-v1.jpg')
 
@@ -228,7 +261,10 @@ def convert(seconds):
     hour = seconds // 3600
     seconds %= 3600
     minutes = seconds // 60
-    
-    return "%d:%02d" % (hour, minutes)
+    if hour != 0:
+        return "%dh%02d" % (hour, minutes)
+    else:
+        return "%2d min" % (minutes)
+
 
 bot.run(os.environ.get("BOT_TOKEN"))
