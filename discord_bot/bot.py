@@ -15,7 +15,10 @@ from itertools import cycle
 #for linux
 #load_dotenv('../.env')
 #for windows
-load_dotenv('./.env')
+if os.path.exists('./.env.local'):
+    load_dotenv('./.env.local')
+else:
+    load_dotenv('./.env')
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -23,7 +26,6 @@ bot = commands.Bot(command_prefix='.', intents=intents)
 
 count = 0
 statusloop = cycle(['not set'])
-data = {}
 
 MAP_URL = {
     'carentan':'https://cdn.discordapp.com/attachments/645036946976145409/733387685502386296/Carentan_TacMap01.jpg',
@@ -132,49 +134,51 @@ LONG_HUMAN_MAP_NAMES = {
 async def on_ready():
     await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
     print('bot ready.')
+    for guild in bot.guilds:
+        if os.environ.get('GUILD_ID') == str(guild.id):
+            print('Starting RCON loop for guild ID:', guild.id)
+            if not rconApiCall.is_running():
+                await startBot(guild)
+    if not rconApiCall.is_running():
+        print('Bot not deployed on expected guild ID:', os.environ.get('GUILD_ID'))
 
 @bot.command()
 async def start(ctx):
-    await startBot(ctx)
+    await startBot(ctx.guild)
 
 @bot.command()
 async def stop(ctx):
-    await stopBot(ctx)
+    await stopBot(ctx.guild)
 
 @bot.command()
 async def restart(ctx):
-    await stopBot(ctx)
+    await stopBot(ctx.guild)
     time.sleep(10.0)
-    await startBot(ctx)
+    await startBot(ctx.guild)
     
 
-async def startBot(ctx):
+async def startBot(guild):
     if not rconApiCall.is_running():
-        rconApiCall.start()
+        rconApiCall.start(guild)
     if not change_status.is_running():
         change_status.start()
-    if not autostatus.is_running():
-        autostatus.start(ctx)
 
-async def stopBot(ctx):
+async def stopBot(guild):
     if rconApiCall.is_running():
-        rconApiCall.stop()
+        rconApiCall.cancel()
     if change_status.is_running():
-        change_status.stop()
-    if autostatus.is_running(): 
-        autostatus.stop()
-    await deleteAll(ctx, False)
+        change_status.cancel()
+    await deleteAll(guild, False)
     await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
 
 
 
 @bot.command()
 async def clean(ctx):
-    await deleteAll(ctx, True)
+    await deleteAll(ctx.guild, True)
     await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
 
-async def deleteAll(ctx, flag):
-    guild = ctx.guild
+async def deleteAll(guild, flag):
     category = None
     for categoryChannel in guild.categories:
         if categoryChannel.name == '📊Hell Let Loose Server Status':
@@ -195,11 +199,13 @@ async def deleteAll(ctx, flag):
 @tasks.loop(seconds=5)
 async def change_status():
     global statusloop
-    await bot.change_presence(status=discord.Status.online, activity=discord.Game(next(statusloop)))
+    try: 
+        await bot.change_presence(status=discord.Status.online, activity=discord.Game(next(statusloop)))
+    except Exception as e:
+        print('Exception while updateing bot status', e)
+        return
 
-@tasks.loop(minutes=1)
-async def autostatus(ctx):
-    guild = ctx.guild
+async def resetChannel(guild):
     category = None
     for categoryChannel in guild.categories:
         if categoryChannel.name == '📊Hell Let Loose Server Status':
@@ -220,31 +226,24 @@ async def autostatus(ctx):
     
     await statusChannel.purge(limit=100)
 
-    status = discord.Embed(
-        #title = data['serverName'],
-        # description='desc',
-        colour=discord.Colour.green()
-    )
-    
-    status.set_author(name=data['serverName'])
-    status.add_field(name='En jeu', value=data['playerCount'] ,inline= False)
-    status.add_field(name='Carte commencée depuis', value=data['gameDuration'] ,inline= False)
-    status.add_field(name='Carte actuelle', value=LONG_HUMAN_MAP_NAMES[data['currentMap']] ,inline= False)
-    status.add_field(name='Prochaine carte', value=LONG_HUMAN_MAP_NAMES[data['nextMap']] ,inline= False)
-    status.set_footer(text='Map tactique')
-    status.set_image(url=MAP_URL[MAP_NAME_TO_URL[data['currentMap']]])
-    status.set_thumbnail(url='https://jungle-hll.fr/wp-content/uploads/2022/06/Logo-v1.jpg')
-
-    await bot.get_channel(statusChannel.id).send(embed=status)
-
-
+    return statusChannel
 
 @tasks.loop(minutes=1)
-async def rconApiCall():       
+async def rconApiCall(guild):   
     global statusloop
-    global data
 
-    public_info = requests.get('http://' + os.environ.get("HLL_RCON_HOST_1") + '/api/public_info').json()
+    try:
+        response = requests.get('http://' + os.environ.get("HLL_RCON_HOST_1") + '/api/public_info')
+
+        if not response.status_code == 200:
+            print('Not 200 returned by RCON API: ', response.status_code, response.text)
+            return
+
+    except requests.exceptions.RequestException as e:  
+        print('Exception while calling RCON API: ', e)
+        return 
+
+    public_info = response.json()
 
     data = {
         'serverName' : public_info['result']['name'],
@@ -256,6 +255,30 @@ async def rconApiCall():
     }
 
     statusloop = cycle(['Game started :' + data['gameDuration'] ,  'Current Map: ' + LONG_HUMAN_MAP_NAMES[data['currentMap']] , 'Players: ' + data['playerCount'], 'Next Map: ' + LONG_HUMAN_MAP_NAMES[data['nextMap']]])
+
+    try: 
+        statusChannel = await resetChannel(guild)
+
+        status = discord.Embed(
+            #title = data['serverName'],
+            # description='desc',
+            colour=discord.Colour.green()
+        )
+        
+        status.set_author(name=data['serverName'])
+        status.add_field(name='En jeu', value=data['playerCount'] ,inline= False)
+        status.add_field(name='Carte commencée depuis', value=data['gameDuration'] ,inline= False)
+        status.add_field(name='Carte actuelle', value=LONG_HUMAN_MAP_NAMES[data['currentMap']] ,inline= False)
+        status.add_field(name='Prochaine carte', value=LONG_HUMAN_MAP_NAMES[data['nextMap']] ,inline= False)
+        status.set_footer(text='Map tactique')
+        status.set_image(url=MAP_URL[MAP_NAME_TO_URL[data['currentMap']]])
+        status.set_thumbnail(url='https://jungle-hll.fr/wp-content/uploads/2022/06/Logo-v1.jpg')
+
+        await bot.get_channel(statusChannel.id).send(embed=status)
+    
+    except Exception as e:
+        print('Exception while updating channel content', e)
+        return
       
 def convert(seconds): 
     hour = seconds // 3600
