@@ -3,6 +3,7 @@ import discord
 import os # default module
 import time
 import requests
+import logging
 
 from dotenv import load_dotenv
 from datetime import datetime
@@ -11,6 +12,11 @@ from unicodedata import name
 from discord.ext import commands, tasks
 from discord.ext.commands import has_permissions
 from itertools import cycle
+
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level= logging.DEBUG if os.path.exists('./.env.local') else logging.INFO,
+    datefmt='%Y-%m-%d %H:%M:%S')
 
 #for linux
 #load_dotenv('../.env')
@@ -133,14 +139,14 @@ LONG_HUMAN_MAP_NAMES = {
 @bot.event
 async def on_ready():
     await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
-    print('bot ready.')
+    logging.info('bot ready.')
     for guild in bot.guilds:
         if os.environ.get('GUILD_ID') == str(guild.id):
-            print('Starting RCON loop for guild ID:', guild.id)
+            logging.info('Starting RCON loop for guild ID: %d', guild.id)
             if not rconApiCall.is_running():
                 await startBot(guild)
     if not rconApiCall.is_running():
-        print('Bot not deployed on expected guild ID:', os.environ.get('GUILD_ID'))
+        logging.exception('Bot not deployed on expected guild ID: %s' + os.environ.get('GUILD_ID'))
 
 @bot.command()
 async def start(ctx):
@@ -202,7 +208,7 @@ async def change_status():
     try: 
         await bot.change_presence(status=discord.Status.online, activity=discord.Game(next(statusloop)))
     except Exception as e:
-        print('Exception while updateing bot status', e)
+        logging.exception('Exception while updating bot status')
         return
 
 async def resetChannel(guild):
@@ -236,27 +242,48 @@ async def rconApiCall(guild):
         response = requests.get('http://' + os.environ.get("HLL_RCON_HOST_1") + '/api/public_info')
 
         if not response.status_code == 200:
-            print('Not 200 returned by RCON API: ', response.status_code, response.text)
+            logging.error('Not 200 returned by RCON API: %d %s', str(response.status_code), response.text)
             return
 
     except requests.exceptions.RequestException as e:  
-        print('Exception while calling RCON API: ', e)
+        logging.exception('Exception while calling RCON API: ')
         return 
 
     public_info = response.json()
+
+    logging.debug('API response=%s', public_info)
 
     data = {
         'serverName' : public_info['result']['name'],
         'starttime' : datetime.utcfromtimestamp(public_info['result']['current_map']['start']).strftime('%Y-%m-%d %H:%M:%S'),
         'gameDuration' : convert(time.time() - public_info['result']['current_map']['start'] ),
         'currentMap' : public_info['result']['map'],
+        'map' : public_info['result']['current_map']['just_name'],
         'nextMap' : public_info['result']['next_map'],
         'playerCount' : public_info['result']['nb_players'],
     }
+    logging.debug('data=%s', data)
 
-    statusloop = cycle(['Game started :' + data['gameDuration'] ,  'Current Map: ' + LONG_HUMAN_MAP_NAMES[data['currentMap']] , 'Players: ' + data['playerCount'], 'Next Map: ' + LONG_HUMAN_MAP_NAMES[data['nextMap']]])
+    if '_RESTART' in data['currentMap']:
+        data['currentMap'] = data['currentMap'].replace('_RESTART', '')
+        logging.debug('sanitized data=%s', data)
 
     try: 
+
+        currentMapName = data['currentMap']
+        if data['currentMap'] in LONG_HUMAN_MAP_NAMES:
+            currentMapName = LONG_HUMAN_MAP_NAMES[data['currentMap']]
+
+        currentMapURL = ''
+        if data['map'] in MAP_URL:
+            currentMapURL = MAP_URL[data['map']]
+
+        nextMapName = data['nextMap']
+        if data['nextMap'] in LONG_HUMAN_MAP_NAMES:
+            nextMapName = LONG_HUMAN_MAP_NAMES[data['nextMap']]
+
+        statusloop = cycle(['Game started :' + data['gameDuration'] ,  'Current Map: ' + currentMapName , 'Players: ' + data['playerCount'], 'Next Map: ' + nextMapName])
+    
         statusChannel = await resetChannel(guild)
 
         status = discord.Embed(
@@ -268,16 +295,16 @@ async def rconApiCall(guild):
         status.set_author(name=data['serverName'])
         status.add_field(name='En jeu', value=data['playerCount'] ,inline= False)
         status.add_field(name='Carte commencée depuis', value=data['gameDuration'] ,inline= False)
-        status.add_field(name='Carte actuelle', value=LONG_HUMAN_MAP_NAMES[data['currentMap']] ,inline= False)
-        status.add_field(name='Prochaine carte', value=LONG_HUMAN_MAP_NAMES[data['nextMap']] ,inline= False)
+        status.add_field(name='Carte actuelle', value=currentMapName ,inline= False)
+        status.add_field(name='Prochaine carte', value=nextMapName ,inline= False)
         status.set_footer(text='Map tactique')
-        status.set_image(url=MAP_URL[MAP_NAME_TO_URL[data['currentMap']]])
+        status.set_image(url=currentMapURL)
         status.set_thumbnail(url='https://jungle-hll.fr/wp-content/uploads/2022/06/Logo-v1.jpg')
 
         await bot.get_channel(statusChannel.id).send(embed=status)
     
     except Exception as e:
-        print('Exception while updating channel content', e)
+        logging.exception('Exception while updating channel content')
         return
       
 def convert(seconds): 
