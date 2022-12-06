@@ -45,7 +45,8 @@ MAP_URL = {
     'stalingrad':'https://cdn.discordapp.com/attachments/645036946976145409/858312040714993664/Stalingrad_TacMap03.png',
     'stmariedumont':'https://cdn.discordapp.com/attachments/645036946976145409/852915706310688808/SMDMV2_TacMap01_SP.png',
     'stmereeglise':'https://cdn.discordapp.com/attachments/645036946976145409/784042616043864134/TacMap_SME_SP.png',
-    'utahbeach':'https://cdn.discordapp.com/attachments/645036946976145409/707529224310751272/UtahUpdate6_TacMap01.png'
+    'utahbeach':'https://cdn.discordapp.com/attachments/645036946976145409/707529224310751272/UtahUpdate6_TacMap01.png',
+    'kharkov': 'https://cdn.discordapp.com/attachments/645036946976145409/1047182446677995570/hll_Map_Kharkov_1920_1.png',
 }
 
 MAP_NAME_TO_URL = {
@@ -90,6 +91,9 @@ MAP_NAME_TO_URL = {
     'remagen_warfare_night':'remagen',
     'omahabeach_warfare':'omahabeach',
     'omahabeach_offensive_ger':'omahabeach',
+    'kharkov_warfare': 'kharkov',
+    'kharkov_offensive_us': 'kharkov',
+    'kharkov_offensive_ger': 'kharkov',
 }
 
 LONG_HUMAN_MAP_NAMES = {
@@ -134,6 +138,9 @@ LONG_HUMAN_MAP_NAMES = {
     'remagen_warfare_night': 'Remagen (Night)',
     'omahabeach_warfare': 'Omaha Beach',
     'omahabeach_offensive_ger': ' Omaha Beach Offensive (GER)',
+    'kharkov_warfare': 'Kharkov',
+    'kharkov_offensive_us': 'Kharkov Offensive (US)',
+    'kharkov_offensive_ger': 'Kharkov Offensive (GER)',
 }
 
 @bot.event
@@ -257,10 +264,12 @@ async def rconApiCall(guild):
         'serverName' : public_info['result']['name'],
         'starttime' : datetime.utcfromtimestamp(public_info['result']['current_map']['start']).strftime('%Y-%m-%d %H:%M:%S'),
         'gameDuration' : convert(time.time() - public_info['result']['current_map']['start'] ),
-        'currentMap' : public_info['result']['map'],
+        'currentMap' : public_info['result']['current_map']['name'],
         'map' : public_info['result']['current_map']['just_name'],
-        'nextMap' : public_info['result']['next_map'],
-        'playerCount' : public_info['result']['nb_players'],
+        'nextMap' : public_info['result']['next_map']['name'],
+        'playerCount' : str(public_info['result']['player_count']) + '/' + str(public_info['result']['max_player_count']),
+        'teams': 'Alliés ' + str(public_info['result']['players']['allied']) + ' - ' + str(public_info['result']['players']['axis']) + ' Axe',
+        'score': 'Alliés ' + str(public_info['result']['score']['allied']) + ' - ' + str(public_info['result']['score']['axis']) + ' Axe',
     }
     logging.debug('data=%s', data)
 
@@ -293,7 +302,8 @@ async def rconApiCall(guild):
         )
         
         status.set_author(name=data['serverName'])
-        status.add_field(name='En jeu', value=data['playerCount'] ,inline= False)
+        status.add_field(name='En jeu', value=data['playerCount'] + ' - ' + data['teams'], inline= False)
+        status.add_field(name='Score', value=data['score'], inline= False)
         status.add_field(name='Carte commencée depuis', value=data['gameDuration'] ,inline= False)
         status.add_field(name='Carte actuelle', value=currentMapName ,inline= False)
         status.add_field(name='Prochaine carte', value=nextMapName ,inline= False)
