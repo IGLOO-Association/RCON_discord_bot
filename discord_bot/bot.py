@@ -264,6 +264,7 @@ async def rconApiCall(guild):
         'serverName' : public_info['result']['name'],
         'starttime' : datetime.utcfromtimestamp(public_info['result']['current_map']['start']).strftime('%Y-%m-%d %H:%M:%S'),
         'gameDuration' : convert(time.time() - public_info['result']['current_map']['start'] ),
+        'timeRemaining' : public_info['result']['raw_time_remaining'],
         'currentMap' : public_info['result']['current_map']['name'],
         'map' : public_info['result']['current_map']['just_name'],
         'nextMap' : public_info['result']['next_map']['name'],
@@ -291,7 +292,7 @@ async def rconApiCall(guild):
         if data['nextMap'] in LONG_HUMAN_MAP_NAMES:
             nextMapName = LONG_HUMAN_MAP_NAMES[data['nextMap']]
 
-        statusloop = cycle(['Game started :' + data['gameDuration'] ,  'Current Map: ' + currentMapName , 'Players: ' + data['playerCount'], 'Next Map: ' + nextMapName])
+        statusloop = cycle(['Time: ' + data['timeRemaining'],  'Current: ' + currentMapName, 'Players: ' + data['playerCount'], 'Scores: ' + data['score'], 'Next: ' + nextMapName])
     
         statusChannel = await resetChannel(guild)
 
@@ -303,8 +304,8 @@ async def rconApiCall(guild):
         
         status.set_author(name=data['serverName'])
         status.add_field(name='En jeu', value=data['playerCount'] + ' - ' + data['teams'], inline= False)
-        status.add_field(name='Score', value=data['score'], inline= False)
-        status.add_field(name='Carte commencée depuis', value=data['gameDuration'] ,inline= False)
+        status.add_field(name='Scores', value=data['score'], inline= False)
+        status.add_field(name='Début / Temps restant', value='Depuis : ' + data['gameDuration'] + ' / Reste : ' + data['timeRemaining'],inline= False)
         status.add_field(name='Carte actuelle', value=currentMapName ,inline= False)
         status.add_field(name='Prochaine carte', value=nextMapName ,inline= False)
         status.set_footer(text='Map tactique')
