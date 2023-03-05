@@ -29,7 +29,7 @@ CHANNEL_NAME = os.environ.get("CHANNEL_NAME")
 HLL_RCON_HOST = os.environ.get("HLL_RCON_HOST")
 ALLOWED_ROLES = os.environ.get("ALLOWED_ROLES")
 
-CATEGORY_NAME = '📊Hell Let Loose Server Status'
+CATEGORY_NAME = 'HLL Server Status 📊'
 
 # Check if all required configuration is provided
 if BOT_TOKEN == None or GUILD_ID == None or CHANNEL_NAME == None or HLL_RCON_HOST == None or ALLOWED_ROLES == None or\
