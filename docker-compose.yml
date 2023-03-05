@@ -1,7 +1,7 @@
 version: '3'
 
 services:
-  bot_1: &bot
+  bot_1: 
     extends:
       file: docker-compose.common.yml
       service: bot
@@ -11,7 +11,7 @@ services:
       HLL_RCON_HOST: ${HLL_RCON_HOST_1}
     restart: on-failure
   
-  bot_2: &bot
+  bot_2: 
     extends:
       file: docker-compose.common.yml
       service: bot
@@ -23,7 +23,7 @@ services:
     depends_on:
       - bot_1
 
-  bot_3: &bot
+  bot_3: 
     extends:
       file: docker-compose.common.yml
       service: bot
