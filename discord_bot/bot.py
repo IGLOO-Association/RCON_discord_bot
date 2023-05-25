@@ -47,6 +47,8 @@ MAP_URL = {
     'stmereeglise':'https://cdn.discordapp.com/attachments/645036946976145409/784042616043864134/TacMap_SME_SP.png',
     'utahbeach':'https://cdn.discordapp.com/attachments/645036946976145409/707529224310751272/UtahUpdate6_TacMap01.png',
     'kharkov': 'https://cdn.discordapp.com/attachments/645036946976145409/1047182446677995570/hll_Map_Kharkov_1920_1.png',
+    'driel': 'https://cdn.discordapp.com/attachments/645036946976145409/1104032305254764564/DEV_Map_Driel.png',
+    'elalamein': 'https://cdn.discordapp.com/attachments/645036946976145409/1104032452843929701/DEV_Map_ElAlamein.png',
 }
 
 MAP_NAME_TO_URL = {
@@ -94,6 +96,12 @@ MAP_NAME_TO_URL = {
     'kharkov_warfare': 'kharkov',
     'kharkov_offensive_us': 'kharkov',
     'kharkov_offensive_ger': 'kharkov',
+    'driel_warfare': 'driel',
+    'driel_offensive_us': 'driel',
+    'driel_offensive_ger': 'driel',
+    'elalamein_warfare': 'elalamein',
+    'elalamein_offensive_us': 'elalamein',
+    'elalamein_offensive_ger': 'elalamein',
 }
 
 LONG_HUMAN_MAP_NAMES = {
@@ -141,6 +149,12 @@ LONG_HUMAN_MAP_NAMES = {
     'kharkov_warfare': 'Kharkov',
     'kharkov_offensive_us': 'Kharkov Offensive (US)',
     'kharkov_offensive_ger': 'Kharkov Offensive (GER)',
+    'driel_warfare': 'Driel',
+    'driel_offensive_us': 'Driel Offensive (US)',
+    'driel_offensive_ger': 'Driel Offensive (GER)',
+    'elalamein_warfare': 'Elalamein',
+    'elalamein_offensive_us': 'Elalamein Offensive (US)',
+    'elalamein_offensive_ger': 'Elalamein Offensive (GER)',
 }
 
 @bot.event
