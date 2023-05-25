@@ -1,3 +1,4 @@
+import signal
 from multiprocessing.connection import wait
 import discord
 import os # default module
@@ -7,10 +8,8 @@ import logging
 
 from dotenv import load_dotenv
 from datetime import datetime
-from turtle import st
 from unicodedata import name
 from discord.ext import commands, tasks
-from discord.ext.commands import has_permissions
 from itertools import cycle
 
 logging.basicConfig(
@@ -18,14 +17,39 @@ logging.basicConfig(
     level= logging.DEBUG if os.path.exists('./.env.local') else logging.INFO,
     datefmt='%Y-%m-%d %H:%M:%S')
 
-#for linux
-#load_dotenv('../.env')
-#for windows
+# Load environment variables (for local usage only, usually loaded from docker-compose)
 if os.path.exists('./.env.local'):
     load_dotenv('./.env.local')
-else:
+elif os.path.exists('./.env'):
     load_dotenv('./.env')
 
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+GUILD_ID = os.environ.get('GUILD_ID')
+CHANNEL_NAME = os.environ.get("CHANNEL_NAME")
+HLL_RCON_HOST = os.environ.get("HLL_RCON_HOST")
+ALLOWED_ROLES = os.environ.get("ALLOWED_ROLES")
+
+CATEGORY_NAME = 'HLL Server Status 📊'
+
+# Check if all required configuration is provided
+if BOT_TOKEN == None or GUILD_ID == None or CHANNEL_NAME == None or HLL_RCON_HOST == None or ALLOWED_ROLES == None or\
+    BOT_TOKEN == '' or GUILD_ID == '' or CHANNEL_NAME == '' or HLL_RCON_HOST == '' or ALLOWED_ROLES == '' :
+    logging.info('Missing bot configuration. Stopping bot.')
+    exit(0)
+
+# Parse list of allowed roles to send commands
+allowedRoles = ALLOWED_ROLES.split(',')
+if any(not roleID.startswith('<@&') and not roleID.endswith('>') for roleID in allowedRoles):
+    logging.info('Bad configuration in allowed role list, it must be a list of role ID starting with "<@&" and ending with ">" delimited by ",". Stopping bot.')
+    exit(0)
+
+def sanitizedRoleID(roleID):
+    return int(roleID.replace('<@&', '').replace('>', ''))
+
+allowedRoleIds = list(map(sanitizedRoleID, allowedRoles))
+logging.info('allowedRoleIds: %s', allowedRoleIds)
+
+# Initialize bot with required intents to receive commands
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='.', intents=intents)
@@ -60,7 +84,7 @@ MAP_NAME_TO_URL = {
     'stmariedumont_off_ger':'stmariedumont',
     'hurtgenforest_warfare_V2':'hurtgenforest',
     'hurtgenforest_offensive_ger':'hurtgenforest',
-    'hurtgenforest_offensive_US':'hurtgenforest',
+    'hurtgenforest_offensive_us':'hurtgenforest',
     'utahbeach_warfare':'utahbeach',
     'utahbeach_offensive_us':'utahbeach',
     'utahbeach_offensive_ger':'utahbeach',
@@ -72,7 +96,7 @@ MAP_NAME_TO_URL = {
     'purpleheartlane_offensive_us':'purpleheartlane',
     'purpleheartlane_offensive_ger':'purpleheartlane',
     'hill400_warfare':'hill400',
-    'hill400_offensive_US':'hill400',
+    'hill400_offensive_us':'hill400',
     'hill400_offensive_ger':'hill400',
     'carentan_warfare':'carentan',
     'carentan_offensive_us':'carentan',
@@ -113,7 +137,7 @@ LONG_HUMAN_MAP_NAMES = {
     'stmariedumont_off_ger': 'St Marie Du Mont Offensive (GER)',
     'hurtgenforest_warfare_V2': 'Hurtgen Forest',
     'hurtgenforest_offensive_ger': 'Hurtgen Forest Offensive (GER)',
-    'hurtgenforest_offensive_US': 'Hurtgen Forest Offensive (US)',
+    'hurtgenforest_offensive_us': 'Hurtgen Forest Offensive (US)',
     'utahbeach_warfare': 'Utah beach',
     'utahbeach_offensive_us': 'Utah Beach Offensive (US)',
     'utahbeach_offensive_ger': 'Utah Beach Offensive (GER)',
@@ -125,7 +149,7 @@ LONG_HUMAN_MAP_NAMES = {
     'purpleheartlane_offensive_us': 'Purple Heart Lane Offensive (US)',
     'purpleheartlane_offensive_ger': 'Purple Heart Lane Offensive (GER)',
     'hill400_warfare': 'Hill 400',
-    'hill400_offensive_US': 'Hill 400 Offensive (US)',
+    'hill400_offensive_us': 'Hill 400 Offensive (US)',
     'hill400_offensive_ger': 'Hill 400 Offensive (GER)',
     'carentan_warfare': 'Carentan',
     'carentan_offensive_us': 'Carentan Offensive (US)',
@@ -162,33 +186,39 @@ async def on_ready():
     await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
     logging.info('bot ready.')
     for guild in bot.guilds:
-        if os.environ.get('GUILD_ID') == str(guild.id):
+        if GUILD_ID == str(guild.id):
             logging.info('Starting RCON loop for guild ID: %d', guild.id)
             if not rconApiCall.is_running():
                 await startBot(guild)
     if not rconApiCall.is_running():
-        logging.exception('Bot not deployed on expected guild ID: %s' + os.environ.get('GUILD_ID'))
+        logging.exception('Bot not deployed on expected guild ID: %s' + GUILD_ID)
 
 @bot.command()
+@commands.has_any_role(*allowedRoleIds)
 async def start(ctx):
-    await startBot(ctx.guild)
+        logging.info('Starting bot...')
+        await startBot(ctx.guild)
 
 @bot.command()
+@commands.has_any_role(*allowedRoleIds)
 async def stop(ctx):
-    await stopBot(ctx.guild)
+        logging.info('Stopping bot...')
+        await stopBot(ctx.guild)
 
 @bot.command()
+@commands.has_any_role(*allowedRoleIds)
 async def restart(ctx):
-    await stopBot(ctx.guild)
-    time.sleep(10.0)
-    await startBot(ctx.guild)
-    
+        logging.info('Restarting bot...')
+        await stopBot(ctx.guild)
+        time.sleep(10.0)
+        await startBot(ctx.guild)
 
 async def startBot(guild):
     if not rconApiCall.is_running():
         rconApiCall.start(guild)
     if not change_status.is_running():
-        change_status.start()
+        change_status.start(guild)
+    logging.info('Bot started.')
 
 async def stopBot(guild):
     if rconApiCall.is_running():
@@ -197,18 +227,18 @@ async def stopBot(guild):
         change_status.cancel()
     await deleteAll(guild, False)
     await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
-
-
+    logging.info('Bot stopped.')
 
 @bot.command()
+@commands.has_any_role(*allowedRoleIds)
 async def clean(ctx):
-    await deleteAll(ctx.guild, True)
-    await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
+        await deleteAll(ctx.guild, True)
+        await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
 
 async def deleteAll(guild, flag):
     category = None
     for categoryChannel in guild.categories:
-        if categoryChannel.name == '📊Hell Let Loose Server Status':
+        if categoryChannel.name == CATEGORY_NAME:
             category = discord.utils.get(guild.categories,id=categoryChannel.id)
             break
 
@@ -222,9 +252,15 @@ async def deleteAll(guild, flag):
     if(flag):
         await category.delete()
 
-
 @tasks.loop(seconds=5)
-async def change_status():
+async def change_status(guild):
+
+    # Cleanup channel when exit requested by signal
+    if not signal_handler.KEEP_PROCESSING:
+        await deleteAll(guild, False)
+        await bot.close()
+        exit(0)
+
     global statusloop
     try: 
         await bot.change_presence(status=discord.Status.online, activity=discord.Game(next(statusloop)))
@@ -233,23 +269,24 @@ async def change_status():
         return
 
 async def resetChannel(guild):
+
     category = None
     for categoryChannel in guild.categories:
-        if categoryChannel.name == '📊Hell Let Loose Server Status':
+        if categoryChannel.name == CATEGORY_NAME:
             category = discord.utils.get(guild.categories,id=categoryChannel.id)
             break
 
     if category == None:   
-        category = await guild.create_category('📊Hell Let Loose Server Status') 
+        category = await guild.create_category(CATEGORY_NAME) 
 
     statusChannel = None
     for channel in category.channels:
-        if channel.name == "server-1":
+        if channel.name == CHANNEL_NAME:
             statusChannel = discord.utils.get(category.channels,id=channel.id)
             break 
 
     if statusChannel == None:
-        statusChannel = await guild.create_text_channel("server-1  ",category = category)
+        statusChannel = await guild.create_text_channel(CHANNEL_NAME, category = category)
     
     await statusChannel.purge(limit=100)
 
@@ -260,7 +297,7 @@ async def rconApiCall(guild):
     global statusloop
 
     try:
-        response = requests.get('http://' + os.environ.get("HLL_RCON_HOST_1") + '/api/public_info')
+        response = requests.get('http://' + HLL_RCON_HOST + '/api/public_info')
 
         if not response.status_code == 200:
             logging.error('Not 200 returned by RCON API: %d %s', str(response.status_code), response.text)
@@ -341,5 +378,20 @@ def convert(seconds):
     else:
         return "%2d min" % (minutes)
 
+# Signal handler to clean channels before stopping process
+class SignalHandler:
+    KEEP_PROCESSING = True
+    def __init__(self):
+        signal.signal(signal.SIGINT, self.exit_gracefully)
+        signal.signal(signal.SIGTERM, self.exit_gracefully)
 
-bot.run(os.environ.get("BOT_TOKEN"))
+    def exit_gracefully(self, signum, frame):
+        print(signum)
+        print("Exiting gracefully")
+        if not self.KEEP_PROCESSING:
+            exit()
+        self.KEEP_PROCESSING = False
+
+signal_handler = SignalHandler()
+
+bot.run(BOT_TOKEN)

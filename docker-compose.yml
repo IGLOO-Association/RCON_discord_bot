@@ -1,0 +1,36 @@
+version: '3'
+
+services:
+  bot_1: 
+    extends:
+      file: docker-compose.common.yml
+      service: bot
+    environment: 
+      BOT_TOKEN: ${BOT_TOKEN_1}
+      CHANNEL_NAME: ${CHANNEL_NAME_1}
+      HLL_RCON_HOST: ${HLL_RCON_HOST_1}
+    restart: on-failure
+  
+  bot_2: 
+    extends:
+      file: docker-compose.common.yml
+      service: bot
+    environment: 
+      BOT_TOKEN: ${BOT_TOKEN_2}
+      CHANNEL_NAME: ${CHANNEL_NAME_2}
+      HLL_RCON_HOST: ${HLL_RCON_HOST_2}
+    restart: on-failure
+    depends_on:
+      - bot_1
+
+  bot_3: 
+    extends:
+      file: docker-compose.common.yml
+      service: bot
+    environment: 
+      BOT_TOKEN: ${BOT_TOKEN_3}
+      CHANNEL_NAME: ${CHANNEL_NAME_3}
+      HLL_RCON_HOST: ${HLL_RCON_HOST_3}
+    restart: on-failure
+    depends_on:
+      - bot_2
