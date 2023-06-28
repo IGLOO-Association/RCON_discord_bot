@@ -28,6 +28,7 @@ GUILD_ID = os.environ.get('GUILD_ID')
 CHANNEL_NAME = os.environ.get("CHANNEL_NAME")
 HLL_RCON_HOST = os.environ.get("HLL_RCON_HOST")
 ALLOWED_ROLES = os.environ.get("ALLOWED_ROLES")
+WELCOME_MSG = os.environ.get('WELCOME_MSG')
 
 CATEGORY_NAME = 'HLL Server Status 📊'
 
@@ -183,7 +184,7 @@ LONG_HUMAN_MAP_NAMES = {
 
 @bot.event
 async def on_ready():
-    await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
+    await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game(WELCOME_MSG))
     logging.info('bot ready.')
     for guild in bot.guilds:
         if GUILD_ID == str(guild.id):
@@ -226,14 +227,14 @@ async def stopBot(guild):
     if change_status.is_running():
         change_status.cancel()
     await deleteAll(guild, False)
-    await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
+    await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game(WELCOME_MSG))
     logging.info('Bot stopped.')
 
 @bot.command()
 @commands.has_any_role(*allowedRoleIds)
 async def clean(ctx):
         await deleteAll(ctx.guild, True)
-        await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game("Welcome to the Jungle"))
+        await bot.change_presence(status=discord.Status.do_not_disturb, activity=discord.Game(WELCOME_MSG))
 
 async def deleteAll(guild, flag):
     category = None
@@ -361,7 +362,7 @@ async def rconApiCall(guild):
         status.add_field(name='Prochaine carte', value=nextMapName ,inline= False)
         status.set_footer(text='Map tactique')
         status.set_image(url=currentMapURL)
-        status.set_thumbnail(url='https://jungle-hll.fr/wp-content/uploads/2022/06/Logo-v1.jpg')
+        # status.set_thumbnail(url='https://jungle-hll.fr/wp-content/uploads/2022/06/Logo-v1.jpg')
 
         await bot.get_channel(statusChannel.id).send(embed=status)
     
