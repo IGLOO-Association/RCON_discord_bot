@@ -29,8 +29,9 @@ CHANNEL_NAME = os.environ.get("CHANNEL_NAME")
 HLL_RCON_HOST = os.environ.get("HLL_RCON_HOST")
 ALLOWED_ROLES = os.environ.get("ALLOWED_ROLES")
 WELCOME_MSG = os.environ.get('WELCOME_MSG')
+THUMBNAIL_URL = os.environ.get('THUMBNAIL_URL')
 
-CATEGORY_NAME = 'HLL Server Status 📊'
+CATEGORY_NAME = os.environ.get('CATEGORY_NAME')
 
 # Check if all required configuration is provided
 if BOT_TOKEN == None or GUILD_ID == None or CHANNEL_NAME == None or HLL_RCON_HOST == None or ALLOWED_ROLES == None or\
@@ -246,11 +247,13 @@ async def deleteAll(guild, flag):
     channels = category.channels # Get all channels of the category
 
     for channel in channels: # We search for all channels in a loop
-        try:
-            await channel.delete() # Delete all channels
-        except AttributeError: # If the category does not exist/channels are gone
-            pass
-    if(flag):
+        if channel.name == CHANNEL_NAME:
+            try:
+                await channel.delete() # Delete all channels
+            except AttributeError: # If the category does not exist/channels are gone
+                pass
+    
+    if flag and len(category.channels) == 0 :
         await category.delete()
 
 @tasks.loop(seconds=5)
@@ -258,7 +261,7 @@ async def change_status(guild):
 
     # Cleanup channel when exit requested by signal
     if not signal_handler.KEEP_PROCESSING:
-        await deleteAll(guild, False)
+        await deleteAll(guild, True)
         await bot.close()
         exit(0)
 
@@ -288,6 +291,8 @@ async def resetChannel(guild):
 
     if statusChannel == None:
         statusChannel = await guild.create_text_channel(CHANNEL_NAME, category = category)
+        logging.debug(guild.roles)
+        await statusChannel.set_permissions(discord.utils.get(guild.roles, name="@everyone"), read_messages=True, send_messages=False)
     
     await statusChannel.purge(limit=100)
 
@@ -345,8 +350,6 @@ async def rconApiCall(guild):
             nextMapName = LONG_HUMAN_MAP_NAMES[data['nextMap']]
 
         statusloop = cycle(['Time: ' + data['timeRemaining'],  'Current: ' + currentMapName, 'Players: ' + data['playerCount'], 'Scores: ' + data['score'], 'Next: ' + nextMapName])
-    
-        statusChannel = await resetChannel(guild)
 
         status = discord.Embed(
             #title = data['serverName'],
@@ -362,12 +365,14 @@ async def rconApiCall(guild):
         status.add_field(name='Prochaine carte', value=nextMapName ,inline= False)
         status.set_footer(text='Map tactique')
         status.set_image(url=currentMapURL)
-        # status.set_thumbnail(url='https://jungle-hll.fr/wp-content/uploads/2022/06/Logo-v1.jpg')
+        if THUMBNAIL_URL != "":
+            status.set_thumbnail(url=THUMBNAIL_URL)
 
-        await bot.get_channel(statusChannel.id).send(embed=status)
+        statusChannel = await resetChannel(guild)
+        await statusChannel.send(embed=status)
     
     except Exception as e:
-        logging.exception('Exception while updating channel content')
+        logging.exception('Exception while updating channel content', e)
         return
       
 def convert(seconds): 
