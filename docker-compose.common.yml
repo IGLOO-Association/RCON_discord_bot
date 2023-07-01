@@ -8,3 +8,5 @@ services:
     environment: 
       GUILD_ID: ${GUILD_ID}
       ALLOWED_ROLES: ${ALLOWED_ROLES}
+      CATEGORY_NAME: ${CATEGORY_NAME}
+      THUMBNAIL_URL: ${THUMBNAIL_URL}
